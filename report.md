@@ -64,3 +64,20 @@ Here is how a classified frame looks like.
 Although it would likely be easy to get an even-better classifier for this problem, I would first
 devote time to improving the filtering methods, and perhaps include some across-time filtering as
 the easiest (and likely most effective) way of improving the current pipeline.
+
+## Video implementation
+Each frame was annotated separately (although, as we said above, using cross-time filtering would
+improve the results), and the resulting video can be found at the bottom of the Jupyter notebook.
+A heatmap approach was used to filter false-positives and the `labels` method mentioned above was
+used to merge duplicates.
+
+## Discussion
+There is room for improvement in essentially all fronts:
+- the classifier was not heavily tuned since the initial attempts already gave satisfactory results;
+- the feature selection was quite small, and we restricted ourselves to using HOG features;
+- the sliding window and filtering approaches we used are fairly basic.
+I actually bumped into two of the common bugs highlighted in the Tips & Tricks page, and only read
+them once these were solved (the one with matplotlib using different scales for JPG and PNG and the
+one concerning how to handle StandardScaler images that were not part of the dataset).
+The pipeline is also quite slow at the moment (to the point where it would not be able to run in
+real-time), so a lot of work could be done on that as well.
