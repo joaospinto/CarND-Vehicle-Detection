@@ -1,37 +1,84 @@
-# Vehicle Detection
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+# Vehicle Detection Project
 
+## Objective
+The goal of this project is to annotate cars in a video stream by drawing rectangles around them.
 
-In this project, your goal is to write a software pipeline to detect vehicles in a video (start with the test_video.mp4 and later implement on full project_video.mp4), but the main output or product we want you to create is a detailed writeup of the project.  Check out the [writeup template](https://github.com/udacity/CarND-Vehicle-Detection/blob/master/writeup_template.md) for this project and use it as a starting point for creating your own writeup.  
+## Approach
+The detection pipeline can be roughly divided in three components:
+- a classifier that takes a `64x64`
+image (or a pre-processed version thereof) and says whether there is a car in that sub-image;
+- a sliding-window method that selects which areas within the image will be fed to the classifier;
+- a method for eliminating false positives and merging duplicates among the windows that were marked
+  as positive.
 
-Creating a great writeup:
----
-A great writeup should include the rubric points as well as your description of how you addressed each point.  You should include a detailed description of the code used in each step (with line-number references and code snippets where necessary), and links to other supporting documents or external references.  You should include images in your writeup to demonstrate how your code works with examples.  
+## Feature selection
+We used only HOG features, since it was fairly easy to achieve over `96%` accuracy in the validation
+set. We tried a couple of SVM classifiers (`SVC` and `LinearSVC`), as well as an entropy-based
+`RandomForestClassifier` and a `GradientBoostingClassifier`. Whilst they all performed reasonably
+well, we settled for the `GradientBoostingClassifier` since it had the highest validation-set
+accuracy (no parameter tuning was necessary).
+The `hog` method was called with the following parameters:
+```
+orientations=6,
+pixels_per_cell=(8, 8),
+cells_per_block=(2, 2),
+block_norm='L2-Hys',
+```
+The intuition behind these values is that we wanted to keep the feature vector small and start with
+something that was close to the parameters suggested in class. Since we got good results with these,
+no further tuning of these parameters was necessary.
 
-All that said, please be concise!  We're not looking for you to write a book here, just a brief description of how you passed each rubric point, and references to the relevant code :). 
+Here is an example of how the HOG annotations look like.
+![HOG](report_imgs/HOG.png)
 
-You can submit your writeup in markdown or use another method and submit a pdf instead.
+All features were scaled using `StandardScaler` to have mean `0` and variance `1`.
 
-The Project
----
+## Sliding windows
+We implemented two separate sliding window methods. First, we tried a multiscale sliding window,
+as suggested in class, where different window sizes are used to account for cars that may be at
+different relative distances from us. We also wrote a simpler sliding window method where all
+windows were of the same size (`100x100`). The reason for this is that, since the windows will be
+post-processed, it's fine to stick to smaller windows and have more of them, since we will have to
+handle duplicate classifications anyway.
+Since we are driving in the left lane throughout the entire video, we restrict our search to the
+bottom-right quarter of the image.
 
-The goals / steps of this project are the following:
+Here is the uniscale grid of windows.
+![windows](report_imgs/uniscale.png)
 
-* Perform a Histogram of Oriented Gradients (HOG) feature extraction on a labeled training set of images and train a classifier Linear SVM classifier
-* Optionally, you can also apply a color transform and append binned color features, as well as histograms of color, to your HOG feature vector. 
-* Note: for those first two steps don't forget to normalize your features and randomize a selection for training and testing.
-* Implement a sliding-window technique and use your trained classifier to search for vehicles in images.
-* Run your pipeline on a video stream (start with the test_video.mp4 and later implement on full project_video.mp4) and create a heat map of recurring detections frame by frame to reject outliers and follow detected vehicles.
-* Estimate a bounding box for vehicles detected.
+## Filtering
+We used a single-frame heatmap (each box marked as a vehicle gets a vote) with a threshold of `>=3`
+to filter out false positives and we made use of `scipy.ndimage.measurements` to merge boxes
+corresponding to the same vehicle.
 
-Here are links to the labeled data for [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) examples to train your classifier.  These example images come from a combination of the [GTI vehicle image database](http://www.gti.ssr.upm.es/data/Vehicle_database.html), the [KITTI vision benchmark suite](http://www.cvlibs.net/datasets/kitti/), and examples extracted from the project video itself.   You are welcome and encouraged to take advantage of the recently released [Udacity labeled dataset](https://github.com/udacity/self-driving-car/tree/master/annotations) to augment your training data.  
+Here is what the heatmap looks like.
+![heatmap](report_imgs/heatmap.png)
 
-Some example images for testing your pipeline on single frames are located in the `test_images` folder.  To help the reviewer examine your work, please save examples of the output from each stage of your pipeline in the folder called `ouput_images`, and include them in your writeup for the project by describing what each image shows.    The video called `project_video.mp4` is the video your pipeline should work well on.  
+Here is how the `labels` method combines these.
+![labels](report_imgs/labels.png)
 
-**As an optional challenge** Once you have a working pipeline for vehicle detection, add in your lane-finding algorithm from the last project to do simultaneous lane-finding and vehicle detection!
+Here is how a classified frame looks like.
+![classified](report_imgs/classified_frame.png)
 
-**If you're feeling ambitious** (also totally optional though), don't stop there!  We encourage you to go out and take video of your own, and show us how you would implement this project on a new video!
+## Directions for improvement
+Although it would likely be easy to get an even-better classifier for this problem, I would first
+devote time to improving the filtering methods, and perhaps include some across-time filtering as
+the easiest (and likely most effective) way of improving the current pipeline.
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+## Video implementation
+Each frame was annotated separately (although, as we said above, using cross-time filtering would
+improve the results), and the resulting video can be found at the bottom of the Jupyter notebook.
+A heatmap approach was used to filter false-positives and the `labels` method mentioned above was
+used to merge duplicates.
 
+## Discussion
+There is room for improvement in essentially all fronts:
+- the classifier was not heavily tuned since the initial attempts already gave satisfactory results;
+- the feature selection was quite small, and we restricted ourselves to using HOG features;
+- the sliding window and filtering approaches we used are fairly basic.
+
+I actually bumped into two of the common bugs highlighted in the Tips & Tricks page, and only read
+them once these were solved (the one with matplotlib using different scales for JPG and PNG and the
+one concerning how to handle StandardScaler images that were not part of the dataset).
+The pipeline is also quite slow at the moment (to the point where it would not be able to run in
+real-time), so a lot of work could be done on that as well.
